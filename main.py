@@ -1,4 +1,5 @@
 from datetime import date
+import math
 
 # ---------------------------------------------------------------
 # SUPERCLASSE: concentra o que é comum a Membro e Autor
@@ -12,10 +13,9 @@ class Pessoa:
         return self.__nome
 
     def set_nome(self, nome):
-        if len(nome) >= 3:
-            self.__nome = nome
-        else:
-            print("Erro (Pessoa - João Turano): O nome deve ter 3 ou mais caracteres.")
+        if not isinstance(nome, str) or len(nome.strip()) < 3:
+            raise ValueError("O nome deve ter pelo menos 3 caracteres.")
+        self.__nome = nome.strip()
 
     def apresentar(self):
         return f"Olá, meu nome é {self.__nome}."
@@ -38,6 +38,8 @@ class Membro(Pessoa):
         return self.__email
 
     def pegar_emprestado(self, livro, data):
+        if not isinstance(livro, Livro) or type(data) is not date:
+            raise ValueError("Os dados do empréstimo são inválidos.")
         if livro.emprestar():
             emprestimo = Emprestimo(livro, data)
             self.__emprestimos.append(emprestimo)
@@ -73,7 +75,9 @@ class Autor(Pessoa):
 # ---------------------------------------------------------------
 class Livro:
     def __init__(self, isbn, titulo, ano_publicacao=None):
-        self.__isbn = isbn
+        if not isinstance(isbn, str) or not isbn.strip():
+            raise ValueError("O ISBN não pode ficar vazio.")
+        self.__isbn = isbn.strip()
         self.__titulo = ""
         self.__ano_publicacao = None
         self.__disponivel = True
@@ -93,16 +97,16 @@ class Livro:
         return self.__ano_publicacao
 
     def set_titulo(self, titulo):
-        if len(titulo) >= 2:
-            self.__titulo = titulo
-        else:
-            print("Erro (Livro - João App): O título deve ter pelo menos 2 caracteres.")
+        if not isinstance(titulo, str) or len(titulo.strip()) < 2:
+            raise ValueError("O título deve ter pelo menos 2 caracteres.")
+        self.__titulo = titulo.strip()
 
     def set_ano_publicacao(self, ano):
-        if 1000 < ano <= 2026:
-            self.__ano_publicacao = ano
-        else:
-            print("Erro (Livro - João App): Ano de publicação inválido.")
+        if type(ano) is not int or not 1000 < ano <= date.today().year:
+            raise ValueError(
+                f"O ano deve estar entre 1001 e {date.today().year}."
+            )
+        self.__ano_publicacao = ano
 
     def adicionar_autor(self, autor):
         if autor not in self.__autores:
@@ -123,6 +127,8 @@ class Livro:
         return False
 
     def devolver(self):
+        if self.__disponivel:
+            raise ValueError("Este livro já está disponível para empréstimo.")
         self.__disponivel = True
 
 
@@ -134,6 +140,8 @@ class Emprestimo:
     MULTA_POR_DIA = 1.00
 
     def __init__(self, livro, data_emprestimo):
+        if not isinstance(livro, Livro) or type(data_emprestimo) is not date:
+            raise ValueError("Os dados do empréstimo são inválidos.")
         self.__livro = livro  # Emprestimo * -> 1 Livro
         self.__data_emprestimo = data_emprestimo
         self.__data_devolucao = None
@@ -155,8 +163,15 @@ class Emprestimo:
         return atraso * self.MULTA_POR_DIA
 
     def finalizar(self, data_devolucao):
-        self.__data_devolucao = data_devolucao
+        if self.__data_devolucao is not None:
+            raise ValueError("Este empréstimo já foi finalizado.")
+        if (
+            type(data_devolucao) is not date
+            or data_devolucao < self.__data_emprestimo
+        ):
+            raise ValueError("A data de devolução não pode ser anterior ao empréstimo.")
         self.__livro.devolver()
+        self.__data_devolucao = data_devolucao
 
 
 # ---------------------------------------------------------------
@@ -169,8 +184,8 @@ class Biblioteca:
         self.__livros = []  # Biblioteca 1 -> 0..* Livro (composição)
         self.__membros = []  # Biblioteca 1 -> 0..* Membro (agregação)
 
-    def cadastrar_livro(self, isbn, titulo):
-        livro = Livro(isbn, titulo)
+    def cadastrar_livro(self, isbn, titulo, ano_publicacao=None):
+        livro = Livro(isbn, titulo, ano_publicacao)
         self.__livros.append(livro)
         return livro
 
@@ -202,22 +217,152 @@ class Funcionario:
 
     def set_cargo(self, cargo):
         cargos_permitidos = ["Bibliotecario", "Atendente", "Gerente"]
-        if cargo in cargos_permitidos:
-            self.__cargo = cargo
-        else:
-            print("Erro (Funcionario - Pedro): Cargo inválido. Use Bibliotecario, Atendente ou Gerente.")
+        if cargo not in cargos_permitidos:
+            raise ValueError(
+                "Cargo inválido. Use Bibliotecario, Atendente ou Gerente."
+            )
+        self.__cargo = cargo
 
     def set_salario(self, salario):
-        if salario >= 1412.00:
-            self.__salario = salario
-        else:
-            print("Erro (Funcionario - Pedro): O salário não pode ser menor que R$ 1412,00.")
+        if (
+            not isinstance(salario, (int, float))
+            or not math.isfinite(salario)
+            or salario < 1412.00
+        ):
+            raise ValueError("O salário mínimo permitido é R$ 1.412,00.")
+        self.__salario = salario
 
 
-# ---------------------------------------------------------------
-# TESTES
-# ---------------------------------------------------------------
-if __name__ == "__main__":
+def ler_inteiro(prompt, minimo, maximo=None):
+    while True:
+        try:
+            valor = int(input(prompt))
+        except ValueError:
+            print("Entrada inválida. Digite um número inteiro.")
+            continue
+        if valor < minimo:
+            print(f"Entrada inválida. Digite um valor a partir de {minimo}.")
+            continue
+        if maximo is not None and valor > maximo:
+            print(f"Entrada inválida. Digite um valor até {maximo}.")
+            continue
+        return valor
+
+
+def ler_texto(prompt, campo, minimo=1):
+    while True:
+        valor = input(prompt).strip()
+        if len(valor) < minimo:
+            print(f"Entrada inválida: {campo} deve ter pelo menos {minimo} caracteres.")
+            continue
+        return valor
+
+
+def ler_salario():
+    while True:
+        try:
+            salario = float(input("Salário: R$ "))
+        except ValueError:
+            print("Entrada inválida. Digite um valor numérico para o salário.")
+            continue
+        if not math.isfinite(salario) or salario < 1412.00:
+            print("Entrada inválida. O salário mínimo permitido é R$ 1.412,00.")
+            continue
+        return salario
+
+
+def selecionar_indice(itens, prompt):
+    if not itens:
+        raise ValueError("Não há itens cadastrados para esta operação.")
+    return ler_inteiro(prompt, 1, len(itens)) - 1
+
+
+def executar_menu():
+    biblioteca = Biblioteca("Biblioteca UNASP", "Engenheiro Coelho - SP")
+    funcionarios = []
+
+    while True:
+        print("\n=== SISTEMA DE BIBLIOTECA ===")
+        print("1 - Cadastrar livro")
+        print("2 - Cadastrar membro")
+        print("3 - Registrar empréstimo")
+        print("4 - Finalizar empréstimo")
+        print("5 - Cadastrar funcionário")
+        print("6 - Listar livros")
+        print("0 - Sair")
+
+        try:
+            opcao = int(input("Escolha uma opção: "))
+        except ValueError:
+            print("Opção inválida. Digite um dos números do menu.")
+            continue
+
+        if opcao == 0:
+            print("Sistema encerrado.")
+            return
+
+        try:
+            if opcao == 1:
+                isbn = ler_texto("ISBN: ", "O ISBN")
+                titulo = ler_texto("Título do livro: ", "O título", 2)
+                ano = ler_inteiro("Ano de publicação: ", 1001, date.today().year)
+                livro = biblioteca.cadastrar_livro(isbn, titulo, ano)
+                print(f"Livro cadastrado: {livro.get_titulo()}")
+            elif opcao == 2:
+                membro_id = ler_inteiro("ID do membro: ", 1)
+                nome = ler_texto("Nome do membro: ", "O nome", 3)
+                email = ler_texto("E-mail do membro: ", "O e-mail")
+                membro = Membro(membro_id, nome, email)
+                biblioteca.cadastrar_membro(membro)
+                print(f"Membro cadastrado: {membro.get_nome()}")
+            elif opcao == 3:
+                livros = biblioteca.get_livros()
+                membros = biblioteca.get_membros()
+                for indice, livro in enumerate(livros, start=1):
+                    estado = "disponível" if livro.esta_disponivel() else "emprestado"
+                    print(f"{indice} - {livro.get_titulo()} ({estado})")
+                livro = livros[selecionar_indice(livros, "Número do livro: ")]
+                for indice, membro in enumerate(membros, start=1):
+                    print(f"{indice} - {membro.get_nome()}")
+                membro = membros[selecionar_indice(membros, "Número do membro: ")]
+                emprestimo = membro.pegar_emprestado(livro, date.today())
+                if emprestimo is None:
+                    print("Este livro já está emprestado.")
+                else:
+                    print("Empréstimo registrado.")
+            elif opcao == 4:
+                emprestimos = [
+                    emprestimo
+                    for membro in biblioteca.get_membros()
+                    for emprestimo in membro.listar_emprestimos()
+                    if emprestimo.get_data_devolucao() is None
+                ]
+                for indice, emprestimo in enumerate(emprestimos, start=1):
+                    print(f"{indice} - {emprestimo.get_livro().get_titulo()}")
+                emprestimo = emprestimos[
+                    selecionar_indice(emprestimos, "Número do empréstimo: ")
+                ]
+                emprestimo.finalizar(date.today())
+                print(f"Devolução registrada. Multa: R$ {emprestimo.calcular_multa():.2f}")
+            elif opcao == 5:
+                cargo = ler_texto("Cargo (Bibliotecario, Atendente ou Gerente): ", "O cargo")
+                salario = ler_salario()
+                funcionario = Funcionario(cargo, salario)
+                funcionarios.append(funcionario)
+                print(f"Funcionário cadastrado: {funcionario.get_cargo()}")
+            elif opcao == 6:
+                livros = biblioteca.get_livros()
+                if not livros:
+                    print("Ainda não há livros cadastrados.")
+                for livro in livros:
+                    print(f"{livro.get_titulo()} - {livro.get_ano_publicacao()}")
+            else:
+                print("Opção inexistente. Escolha uma opção de 0 a 6.")
+        except (IndexError, ValueError) as erro:
+            print(f"Não foi possível concluir a operação: {erro}")
+
+
+def executar_testes():
     print("=== TESTANDO O SISTEMA DE BIBLIOTECA ===")
     print("\n--- Herança: Pessoa -> Membro e Autor ---")
     tolkien = Autor("J. R. R. Tolkien", "Britânica")
@@ -225,7 +370,10 @@ if __name__ == "__main__":
     print(isinstance(tolkien, Pessoa), isinstance(maria, Pessoa))
     print(tolkien.apresentar())
     print(maria.apresentar())
-    Membro(2, "Jo", "jo@email.com")  # nome inválido (validação herdada de Pessoa)
+    try:
+        Membro(2, "Jo", "jo@email.com")
+    except ValueError as erro:
+        print(f"Entrada inválida tratada: {erro}")
 
     print("\n--- Biblioteca, Livro e Autor ---")
     biblioteca = Biblioteca("Biblioteca UNASP", "Engenheiro Coelho - SP")
@@ -236,12 +384,15 @@ if __name__ == "__main__":
     print(f"Livro: {livro.get_titulo()} ({livro.get_ano_publicacao()})")
     print("Autores:", [a.get_nome() for a in livro.get_autores()])
     print("Obras de Tolkien:", [l.get_titulo() for l in tolkien.listar_obras()])
-    biblioteca.cadastrar_livro("0", "A")  # título inválido
+    try:
+        biblioteca.cadastrar_livro("0", "A")
+    except ValueError as erro:
+        print(f"Entrada inválida tratada: {erro}")
 
     print("\n--- Empréstimo (com multa) ---")
     emprestimo = maria.pegar_emprestado(livro, date(2026, 10, 1))
     print("Disponível após emprestar?", livro.esta_disponivel())
-    maria.pegar_emprestado(livro, date(2026, 10, 2))  # já emprestado
+    maria.pegar_emprestado(livro, date(2026, 10, 2))
     emprestimo.finalizar(date(2026, 10, 12))  # 11 dias -> 4 de atraso
     print(f"Multa: R$ {emprestimo.calcular_multa():.2f}")
     print("Disponível após devolver?", livro.esta_disponivel())
@@ -250,4 +401,11 @@ if __name__ == "__main__":
     print("\n--- Funcionario ---")
     func = Funcionario("Atendente", 2500.00)
     print(f"Funcionário: {func.get_cargo()} - R$ {func.get_salario():.2f}")
-    Funcionario("Diretor", 1000.00)
+    try:
+        Funcionario("Diretor", 1000.00)
+    except ValueError as erro:
+        print(f"Entrada inválida tratada: {erro}")
+
+
+if __name__ == "__main__":
+    executar_menu()
